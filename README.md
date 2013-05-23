@@ -5,7 +5,7 @@ pydnode is a dnode protocol implementation in python.
 
 install
 -----------------
-git clone ....
+git clone git@github.com:ybrs/pydnode.git
 
 cd pydnode && virtualenv env && ./env/bin/python setup.py develop
 
