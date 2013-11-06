@@ -20,9 +20,10 @@ class DnodeServer(TCPServer):
 
 class RpcMethods(object):
 
-    def z1(self, *args, **kwargs):
-        print "received args", args
-        print "received kwargs", kwargs
+    def z1(self, k, fn):
+        print "received k", k
+        print "fn:", fn
+        fn("hello")
 
     def z2(self):
         pass
@@ -57,11 +58,39 @@ class DnodeConnection(object):
 
     def _on_read_line(self, data):
         logging.info('read a new line from %s - %s', self.address, data)
-        #for stream in self.stream_set:
-        #    stream.write(data, self._on_write_complete)
         self.parseline(data)
 
+    def write_to_client(self, data):
+        for stream in self.stream_set:
+            stream.write(data, self._on_write_complete)
 
+    def prepare_our_args(self, obj, callbacks):
+        if callable(obj):
+            self.callbacks[self.callbacknumber] = obj
+            callbacks[self.callbacknumber] = [self.argcallbackcounter]
+            self.callbacknumber+=1
+            self.argcallbackcounter += 1
+            return '[Function]'
+        elif isinstance(obj, str) or isinstance(obj, unicode) or isinstance(obj, int) or isinstance(obj, float):
+            self.argcallbackcounter += 1
+        elif isinstance(obj, dict) or isinstance(obj, list) or isinstance(obj, tuple):
+            pass
+        else:
+            raise Exception("Cant convert to json, unsupported type: " + str(type(obj)) )
+        return obj
+
+    def calldnodemethod(self, method, *args, **kwargs):
+        self.argcallbackcounter = 0
+        callbacks = {}
+        args = copyobject(args, self.prepare_our_args, callbacks)
+        line = json.dumps({
+                    'method': method,
+                    'arguments': args,
+                    'callbacks': callbacks
+                }) + "\n"
+        print "Sending to server", line
+        self.write_to_client(line)
+        
     def normalize_callbacks(self, callbacks):
         ret = []
         for k,v in callbacks.iteritems():
@@ -98,7 +127,7 @@ class DnodeConnection(object):
                         # TODO: dont you think this is spagettiii
                         callbacks = self.normalize_callbacks(o['callbacks'])
                         myobj = self.traverse_result(o['arguments'], callbacks, {})
-                        fn(myobj)
+                        fn(*myobj)
                     else:
                         raise Exception("method not found - %s" % o['method'])
         except Exception as e:
