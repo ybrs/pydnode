@@ -110,7 +110,7 @@ class DNodeClient(object):
                 myobj = self.traverse_result(o['arguments'], callbacks, {})
                 self.callbacks[o['method']](*myobj)
             else:
-                fn = getattr(self.pc, o['method'])
+                fn = getattr(self.pc, o['method'], None)
                 if fn:
                     fn(o)
         except Exception as e:
