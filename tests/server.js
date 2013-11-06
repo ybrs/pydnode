@@ -2,6 +2,8 @@ var dnode = require('dnode');
 
 
 function pfun(x, y){
+    console.log("------------------------------")
+    console.log("pfun called with", x, y)
 }
 
 var server = dnode(function (remote, conn) {
@@ -21,7 +23,7 @@ var server = dnode(function (remote, conn) {
         callback(function (test, callback2){
             console.log("test >>>", test, callback2)
             callback2(pfun, "OK done")
-        })        
+        })
     }
 
 });

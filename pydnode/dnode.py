@@ -1,6 +1,8 @@
-import eventlet
 import json
-from eventlet.green import socket
+try:
+    from eventlet.green import socket
+except Exception as e:
+    import socket
 
 class ProtocolCommands(object):
     def __init__(self):
@@ -30,6 +32,7 @@ def copyobject(obj, fn, callbacks):
     if hasattr(obj, '__iter__'):
         return type(obj)(copyobject(i, fn, callbacks) for i in obj)
     return obj
+
 
 class DNodeClient(object):
 
@@ -67,6 +70,7 @@ class DNodeClient(object):
                     'arguments': args,
                     'callbacks': callbacks
                 }) + "\n"
+        print "Sending to server", line
         self.conn.sendall(line)
         self.read_until_newline()
 
@@ -125,9 +129,9 @@ class DNodeClient(object):
         self.conn = socket.socket()
         self.conn.connect((self.ip, self.port))
         print '%s connected' % self.ip
-        line = ''
         while True:
             line = self.conn.recv(1024)
+            print line
             buffer += line
             buffer = self.parse_buffer(buffer)
             if not buffer:

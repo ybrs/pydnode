@@ -18,7 +18,7 @@ def run_setup():
         license='BSD',
         packages=['pydnode'],
         install_requires=[
-            'eventlet>=0.12.1'
+            'tornado>=3.1.1'
         ],
         test_suite='tests',
         long_description=read('README.md'),

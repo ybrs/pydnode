@@ -1,9 +1,10 @@
 from pydnode import dnode
-def output(f, remoteCallback):
-    print f
-    if remoteCallback:
-        remoteCallback("Foo", lambda x: output(x, None))
+
+def output(fn):
+    print ">>>>", fn
+    #fn("Foo", lambda x, y: output(x))
 
 client = dnode.DNodeClient("127.0.0.1", 7070)
 client.connect()
-client.calldnodemethod("fn", "foo", output)
+
+client.calldnodemethod("z1", "foo", output)
