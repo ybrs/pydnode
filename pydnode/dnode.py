@@ -115,6 +115,9 @@ class DNodeClient(object):
         logging.info("%s:%s connected", self.ip, self.port)
         self.conn.read_until(b"\n", self.parseline)
 
+    def close(self):
+        self.conn.close()
+
     def connect(self, on_connect=None):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         self.conn = iostream.IOStream(self.socket)
