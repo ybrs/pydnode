@@ -10,12 +10,14 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s - - %(asctime)s %(
  
 class DnodeServer(TCPServer):
  
-    def __init__(self, io_loop=None, ssl_options=None, **kwargs):
+    def __init__(self, rpc_class=None, io_loop=None, ssl_options=None, **kwargs):
         logging.info('a echo tcp server is started')
+        assert rpc_class
+        self.rpc_class = rpc_class
         TCPServer.__init__(self, io_loop=io_loop, ssl_options=ssl_options, **kwargs)
  
     def handle_stream(self, stream, address):
-        DnodeConnection(stream, address)
+        DnodeConnection(stream, address, self.rpc_class)
 
 
 class RpcMethods(object):
@@ -23,7 +25,9 @@ class RpcMethods(object):
     def z1(self, k, fn):
         print "received k", k
         print "fn:", fn
-        fn("hello")
+        def mycb(*args):
+            print "mycb: >>>>", args
+        fn("hello", mycb)
 
     def z2(self):
         pass
@@ -35,7 +39,7 @@ class DnodeConnection(object):
  
     stream_set = set([])
  
-    def __init__(self, stream, address):
+    def __init__(self, stream, address, rpc_class):
         logging.info('receive a new connection from %s', address)
         self.stream = stream
         self.address = address
@@ -43,8 +47,10 @@ class DnodeConnection(object):
         self.stream.set_close_callback(self._on_close)
 
         self.pc = ProtocolCommands()
-        self.commander = RpcMethods()
+        self.commander = rpc_class()
         self.remotecallbacks = {}
+        self.callbacks = {}
+        self.callbacknumber = 0
 
         # ???
         self.send_methods()
@@ -90,7 +96,7 @@ class DnodeConnection(object):
                 }) + "\n"
         print "Sending to server", line
         self.write_to_client(line)
-        
+
     def normalize_callbacks(self, callbacks):
         ret = []
         for k,v in callbacks.iteritems():
@@ -145,7 +151,7 @@ class DnodeConnection(object):
         self.stream_set.remove(self.stream)
  
 def main():
-    echo_server = DnodeServer()
+    echo_server = DnodeServer(rpc_class=RpcMethods)
     echo_server.listen(7070)
     IOLoop.instance().start()
 

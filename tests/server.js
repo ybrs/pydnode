@@ -8,6 +8,13 @@ function pfun(x, y){
 
 var server = dnode(function (remote, conn) {
 
+    this.zt = function(foo, callback){
+        console.log(">>> zt called")
+        callback("f", function(d){
+            console.log(">>>> d:", d)
+        })
+    }
+
     this.z1 = function(foo, callback){
         callback(foo)
     }

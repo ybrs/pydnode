@@ -1,8 +1,7 @@
+from tornado import ioloop, iostream
+import socket
 import json
-try:
-    from eventlet.green import socket
-except Exception as e:
-    import socket
+
 
 class ProtocolCommands(object):
     def __init__(self):
@@ -71,17 +70,19 @@ class DNodeClient(object):
                     'callbacks': callbacks
                 }) + "\n"
         print "Sending to server", line
-        self.conn.sendall(line)
-        self.read_until_newline()
+        self.conn.write(line)
+        print "sent all"
+        #self.read_until_newline()
+        #self.conn.read_until(b"\n", self.parseline)
 
-    def read_until_newline(self):
-        buffer = ''
-        while True:
-            line = self.conn.recv(1024)
-            buffer += line
-            buffer = self.parse_buffer(buffer)
-            if not buffer:
-                return
+    #def read_until_newline(self):
+    #    buffer = ''
+    #    while True:
+    #        line = self.conn.recv(1024)
+    #        buffer += line
+    #        buffer = self.parse_buffer(buffer)
+    #        if not buffer:
+    #            return
 
     def normalize_callbacks(self, callbacks):
         ret = []
@@ -102,7 +103,11 @@ class DNodeClient(object):
         myobj = copyobject(result, self.replace_functions, callbacks)
         return myobj
 
+    def on_connect(self):
+        return
+
     def parseline(self, line):
+        print "parseline called", line
         try:
             o = json.loads(line)
             if isinstance(o['method'], int):
@@ -110,9 +115,13 @@ class DNodeClient(object):
                 myobj = self.traverse_result(o['arguments'], callbacks, {})
                 self.callbacks[o['method']](*myobj)
             else:
+                if o['method'] == 'methods':
+                    self.on_connect()
+
                 fn = getattr(self.pc, o['method'], None)
                 if fn:
                     fn(o)
+            self.conn.read_until("\n", self.parseline)
         except Exception as e:
             raise
 
@@ -124,15 +133,22 @@ class DNodeClient(object):
         else:
             return buffer
 
-    def connect(self):
-        buffer  = ''
-        self.conn = socket.socket()
-        self.conn.connect((self.ip, self.port))
+    def connect_callback(self):
         print '%s connected' % self.ip
-        while True:
-            line = self.conn.recv(1024)
-            print line
-            buffer += line
-            buffer = self.parse_buffer(buffer)
-            if not buffer:
-                return
+        self.conn.read_until(b"\n", self.parseline)
+        #while True:
+        #    line = self.conn.recv(1024)
+        #    print line
+        #    buffer += line
+        #    buffer = self.parse_buffer(buffer)
+        #    if not buffer:
+        #        return
+
+    def connect(self, on_connect=None):
+        #buffer  = ''
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+        self.conn = iostream.IOStream(self.socket)
+        self.conn.connect((self.ip, self.port), self.connect_callback)
+        if on_connect:
+            self.on_connect = on_connect
+        ioloop.IOLoop.instance().start()
