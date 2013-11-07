@@ -1,4 +1,5 @@
 from pydnode import dnode
+import logging
 
 def output(fn, b):
     print ">>>>", fn, "b", b
@@ -13,6 +14,8 @@ def on_connect():
     client.calldnodemethod("zt", "foo", output)
     #client.calldnodemethod("zt", "foo", output)
     #client.calldnodemethod("zt", "foo", output)
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 client = dnode.DNodeClient("127.0.0.1", 7070)

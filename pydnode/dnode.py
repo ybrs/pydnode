@@ -1,7 +1,7 @@
 from tornado import ioloop, iostream
 import socket
 import json
-
+import logging
 
 class ProtocolCommands(object):
     def __init__(self):
@@ -69,20 +69,7 @@ class DNodeClient(object):
                     'arguments': args,
                     'callbacks': callbacks
                 }) + "\n"
-        print "Sending to server", line
         self.conn.write(line)
-        print "sent all"
-        #self.read_until_newline()
-        #self.conn.read_until(b"\n", self.parseline)
-
-    #def read_until_newline(self):
-    #    buffer = ''
-    #    while True:
-    #        line = self.conn.recv(1024)
-    #        buffer += line
-    #        buffer = self.parse_buffer(buffer)
-    #        if not buffer:
-    #            return
 
     def normalize_callbacks(self, callbacks):
         ret = []
@@ -107,7 +94,6 @@ class DNodeClient(object):
         return
 
     def parseline(self, line):
-        print "parseline called", line
         try:
             o = json.loads(line)
             if isinstance(o['method'], int):
@@ -125,27 +111,11 @@ class DNodeClient(object):
         except Exception as e:
             raise
 
-    def parse_buffer(self, buffer):
-        c = buffer.index("\n")
-        if c:
-            self.parseline(buffer[0:c])
-            return buffer[c+1:]
-        else:
-            return buffer
-
     def connect_callback(self):
-        print '%s connected' % self.ip
+        logging.info("%s:%s connected", self.ip, self.port)
         self.conn.read_until(b"\n", self.parseline)
-        #while True:
-        #    line = self.conn.recv(1024)
-        #    print line
-        #    buffer += line
-        #    buffer = self.parse_buffer(buffer)
-        #    if not buffer:
-        #        return
 
     def connect(self, on_connect=None):
-        #buffer  = ''
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         self.conn = iostream.IOStream(self.socket)
         self.conn.connect((self.ip, self.port), self.connect_callback)
