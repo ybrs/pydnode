@@ -7,6 +7,7 @@ import tornado, functools
 from Queue import Queue
 from pydnode import dnode
 import time
+from pydnode import server
 
 """
 in project root, you need to install dnode for tests
@@ -18,9 +19,8 @@ $ ./env/bin/python tests/test_basic.py
 class TestProtocol(unittest.TestCase):
 
     def setUp(self):
-        #self.p = subprocess.Popen(['node', 'tests/server.js'])
-        print "sleeping"
-        #time.sleep(1)
+        dnode_server = server.DnodeServer(rpc_class=server.RpcMethods)
+        dnode_server.listen(7070)
 
     def testSimple(self):
         # couldnt find a simpler way
@@ -60,6 +60,17 @@ class TestProtocol(unittest.TestCase):
 
             tests.put("check multiple args with multiple callbacks")
             client.calldnodemethod("z2", "foo", fn2, "bar", fn3)
+
+            tests.put("dict test")
+            client.remote.dicttest({'h': "hello"}, output)
+
+            def fn4(x):
+                print "called fn4 with x", x
+                print tests.get(), "OK"
+
+            tests.put("dict test with callable")
+            client.remote.dicttest2({'h': 'hello', 'callback': fn4, 'h2': ('foo')})
+
 
             def check_tests():
                 print "check tests called...."

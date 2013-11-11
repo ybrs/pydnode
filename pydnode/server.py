@@ -8,8 +8,7 @@ from collections import OrderedDict
 from dnode import ProtocolCommands, copyobject, DNodeRemoteFunction, DNodeNode
 import inspect
 
-
-logging.basicConfig(level=logging.INFO, format='%(levelname)s - - %(asctime)s %(message)s', datefmt='[%d/%b/%Y %H:%M:%S]')
+logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(asctime)s %(message)s', datefmt='[%d/%b/%Y %H:%M:%S]')
  
 class DnodeServer(TCPServer):
  
@@ -41,8 +40,18 @@ class RpcMethods(object):
         def somecallback(c, f):
             print ">>>", c, f
             f("baz")
-
         fn2("foo", somecallback, "bar")
+
+    def dicttest(self, h, callback):
+        """
+        call with hash
+        """
+        callback(h)
+
+    def dicttest2(self, h):
+        print "in dicttest2", h
+        h['callback']("foo")
+
 
 
 class DnodeConnection(DNodeNode):

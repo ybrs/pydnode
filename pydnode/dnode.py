@@ -135,17 +135,12 @@ class DNodeClient(DNodeNode):
         try:
             o = json.loads(line)
             if isinstance(o['method'], int):
-                print "received method :::: ", o['method'], "self.callbacks", self.callbacks
                 callbacks = self.normalize_callbacks(o['callbacks'])
                 myobj = self.traverse_result(o['arguments'], callbacks, OrderedDict())
                 fn = self.callbacks[o['method']]
-                print ">>>>>", fn, o['method'], myobj
                 fn(*myobj)
             else:
                 if o['method'] == 'methods':
-                    print "--------------"
-                    print o
-                    print "--------------"
                     for k, v in o['callbacks'].iteritems():
                         self.remote.add_method(str(v[1]), [k], k)
                     self.on_connect()
