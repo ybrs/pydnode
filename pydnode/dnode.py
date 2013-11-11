@@ -17,12 +17,16 @@ class ProtocolCommands(object):
 class DNodeRemoteFunction(object):
 
     def __init__(self, callbackid, path, client):
+        """
+        path is just for debugging purposes
+        """
         self.callbackid = callbackid
         self.path = path
         # TODO: this object will never be deleted, because circular ref.
         self.client = client
 
     def __call__(self, *args, **kwargs):
+        print "calling remote function...."
         self.client.calldnodemethod(int(self.callbackid), *args)
 
     def __str__(self):
@@ -36,17 +40,18 @@ def copyobject(obj, fn, callbacks):
         return type(obj)(copyobject(i, fn, callbacks) for i in obj)
     return obj
 
+class DNodeNode(object):
+    """ our base class for dnode server and client
+    """
+    def normalize_callbacks(self, callbacks):
+        ret = []
+        for k,v in callbacks.iteritems():
+            ret.append((k, v))
+        return ret
 
-class DNodeClient(object):
-
-    def __init__(self, ip, port):
-        self.ip = ip
-        self.port = port
-        self.pc = ProtocolCommands()
-        self.conn = None
-        self.callbacknumber = 1
-        self.callbacks = {}
-        self.remotecallbacks = {}
+    def traverse_result(self, result, callbacks, obj):
+        myobj = copyobject(result, self.replace_functions, callbacks)
+        return myobj
 
     def prepare_our_args(self, obj, callbacks):
         if callable(obj):
@@ -61,10 +66,9 @@ class DNodeClient(object):
             pass
         else:
             raise Exception("Cant convert to json, unsupported type: " + str(type(obj)) )
-
         return obj
 
-    def calldnodemethod(self, method, *args, **kwargs):
+    def dnode_method_protocol_line(self, method, *args, **kwargs):
         self.argcallbackcounter = 0
         callbacks = {}
         args = copyobject(args, self.prepare_our_args, callbacks)
@@ -73,13 +77,7 @@ class DNodeClient(object):
                     'arguments': args,
                     'callbacks': callbacks
                 }) + "\n"
-        self.conn.write(line)
-
-    def normalize_callbacks(self, callbacks):
-        ret = []
-        for k,v in callbacks.iteritems():
-            ret.append((k, v))
-        return ret
+        return line
 
     def replace_functions(self, obj, callbacks):
         if obj == '[Function]':
@@ -90,9 +88,35 @@ class DNodeClient(object):
                 return fn
         return obj
 
-    def traverse_result(self, result, callbacks, obj):
-        myobj = copyobject(result, self.replace_functions, callbacks)
-        return myobj
+class DNodeRemote(object):
+    """
+    this is just a syntatic sugar to call for DNodeClient.calldnodemethod()
+    """
+    def __init__(self, client):
+        self.remote_methods = {}
+        self.client = client
+
+    def __getattr__(self, name):
+        return self.remote_methods[name]
+
+    def add_method(self, name, path, callbackid):
+        self.remote_methods[name] = DNodeRemoteFunction(callbackid, path, self.client)
+
+class DNodeClient(DNodeNode):
+
+    def __init__(self, ip, port):
+        self.ip = ip
+        self.port = port
+        self.pc = ProtocolCommands()
+        self.conn = None
+        self.callbacknumber = 1
+        self.callbacks = {}
+        self.remotecallbacks = {}
+        self.remote = DNodeRemote(self)
+
+    def calldnodemethod(self, method, *args, **kwargs):
+        line = self.dnode_method_protocol_line(method, *args, **kwargs)
+        self.conn.write(line)
 
     def on_connect(self):
         return
@@ -109,6 +133,8 @@ class DNodeClient(object):
                 fn(*myobj)
             else:
                 if o['method'] == 'methods':
+                    for k, v in o['callbacks'].iteritems():
+                        self.remote.add_method(str(v[1]), [k], k)
                     self.on_connect()
 
                 fn = getattr(self.pc, o['method'], None)

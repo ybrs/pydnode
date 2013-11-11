@@ -5,7 +5,7 @@ from tornado.ioloop import IOLoop
 from tornado.iostream import IOStream
 from tornado.tcpserver import TCPServer
 from collections import OrderedDict
-from dnode import ProtocolCommands, copyobject, DNodeRemoteFunction
+from dnode import ProtocolCommands, copyobject, DNodeRemoteFunction, DNodeNode
 import inspect
 
 
@@ -24,7 +24,9 @@ class DnodeServer(TCPServer):
 
 
 class RpcMethods(object):
-
+    """
+    this is just an example server
+    """
     def z1(self, k, fn):
         print "received k", k
         print "fn:", fn
@@ -42,10 +44,8 @@ class RpcMethods(object):
 
         fn2("foo", somecallback, "bar")
 
-    def z3(self):
-        pass
 
-class DnodeConnection(object):
+class DnodeConnection(DNodeNode):
  
     stream_set = set([])
  
@@ -91,51 +91,9 @@ class DnodeConnection(object):
         for stream in self.stream_set:
             stream.write(data, self._on_write_complete)
 
-    def prepare_our_args(self, obj, callbacks):
-        if callable(obj):
-            self.callbacks[self.callbacknumber] = obj
-            callbacks[self.callbacknumber] = [self.argcallbackcounter]
-            self.callbacknumber+=1
-            self.argcallbackcounter += 1
-            return '[Function]'
-        elif isinstance(obj, str) or isinstance(obj, unicode) or isinstance(obj, int) or isinstance(obj, float):
-            self.argcallbackcounter += 1
-        elif isinstance(obj, dict) or isinstance(obj, list) or isinstance(obj, tuple):
-            pass
-        else:
-            raise Exception("Cant convert to json, unsupported type: " + str(type(obj)) )
-        return obj
-
     def calldnodemethod(self, method, *args, **kwargs):
-        self.argcallbackcounter = 0
-        callbacks = {}
-        args = copyobject(args, self.prepare_our_args, callbacks)
-        line = json.dumps({
-                    'method': method,
-                    'arguments': args,
-                    'callbacks': callbacks
-                }) + "\n"
-        print "Sending to server", line
+        line = self.dnode_method_protocol_line(method, *args, **kwargs)
         self.write_to_client(line)
-
-    def normalize_callbacks(self, callbacks):
-        ret = []
-        for k,v in callbacks.iteritems():
-            ret.append((k, v))
-        return ret
-
-    def replace_functions(self, obj, callbacks):
-        if obj == '[Function]':
-            functionid, functionpath = callbacks.pop(0)
-            fn = DNodeRemoteFunction(functionid, functionpath, self)
-            if functionid not in self.remotecallbacks:
-                self.remotecallbacks[functionid] = fn
-                return fn
-        return obj
-
-    def traverse_result(self, result, callbacks, obj):
-        myobj = copyobject(result, self.replace_functions, callbacks)
-        return myobj
 
     def parseline(self, line):
         try:

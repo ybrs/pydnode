@@ -28,11 +28,12 @@ class TestProtocol(unittest.TestCase):
         def on_connect():
             print "on connect called..."
             def fn(f):
-                print ">>> f >>>", f
                 assert f == "foo"
                 print tests.get(), "OK"
             tests.put("check simple f==foo")
             client.calldnodemethod("z1", "foo", fn)
+            tests.put("check simple with remote notation f==foo")
+            client.remote.z1("foo", fn)
 
             def output(o):
                 assert o
@@ -47,7 +48,6 @@ class TestProtocol(unittest.TestCase):
                 assert foo=="foo" and callable(fn) and bar == "bar"
                 tests.put("check calling remote function returning a callback")
                 fn("baz", lambda x: output(x=="baz"))
-                print ">!!!!!!!!!!!!!!!!!!!! removing test...."
                 print tests.get(), "OK"
                 print tests.empty(), tests.qsize()
 
