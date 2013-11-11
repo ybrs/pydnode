@@ -2,6 +2,7 @@ from tornado import ioloop, iostream
 import socket
 import json
 import logging
+from collections import OrderedDict
 
 class ProtocolCommands(object):
     def __init__(self):
@@ -23,6 +24,9 @@ class DNodeRemoteFunction(object):
 
     def __call__(self, *args, **kwargs):
         self.client.calldnodemethod(int(self.callbackid), *args)
+
+    def __str__(self):
+        return "<DNodeRemoteFunction callbackid:%s path:%s>" % (self.callbackid, self.path)
 
 def copyobject(obj, fn, callbacks):
     obj = fn(obj, callbacks)
@@ -79,7 +83,7 @@ class DNodeClient(object):
 
     def replace_functions(self, obj, callbacks):
         if obj == '[Function]':
-            functionid, functionpath = callbacks.pop()
+            functionid, functionpath = callbacks.pop(0)
             fn = DNodeRemoteFunction(functionid, functionpath, self)
             if functionid not in self.remotecallbacks:
                 self.remotecallbacks[functionid] = fn
@@ -97,9 +101,12 @@ class DNodeClient(object):
         try:
             o = json.loads(line)
             if isinstance(o['method'], int):
+                print "received method :::: ", o['method'], "self.callbacks", self.callbacks
                 callbacks = self.normalize_callbacks(o['callbacks'])
-                myobj = self.traverse_result(o['arguments'], callbacks, {})
-                self.callbacks[o['method']](*myobj)
+                myobj = self.traverse_result(o['arguments'], callbacks, OrderedDict)
+                fn = self.callbacks[o['method']]
+                print ">>>>>", fn, o['method'], myobj
+                fn(*myobj)
             else:
                 if o['method'] == 'methods':
                     self.on_connect()

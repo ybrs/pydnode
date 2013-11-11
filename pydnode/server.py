@@ -4,6 +4,7 @@ import json
 from tornado.ioloop import IOLoop
 from tornado.iostream import IOStream
 from tornado.tcpserver import TCPServer
+from collections import OrderedDict
 from dnode import ProtocolCommands, copyobject, DNodeRemoteFunction
  
 logging.basicConfig(level=logging.INFO, format='%(levelname)s - - %(asctime)s %(message)s', datefmt='[%d/%b/%Y %H:%M:%S]')
@@ -27,10 +28,17 @@ class RpcMethods(object):
         print "fn:", fn
         def mycb(*args):
             print "mycb: >>>>", args
-        fn("hello", mycb)
+        fn("foo")
 
-    def z2(self):
-        pass
+    def z2(self, k, fn2, k2, fn3):
+        print "calling z2", fn2, fn3
+        assert k == 'foo'
+        assert k2 == 'bar'
+        def somecallback(c, f):
+            print ">>>", c, f
+            f("baz")
+
+        fn2("foo", somecallback, "bar")
 
     def z3(self):
         pass
@@ -48,8 +56,8 @@ class DnodeConnection(object):
 
         self.pc = ProtocolCommands()
         self.commander = rpc_class()
-        self.remotecallbacks = {}
-        self.callbacks = {}
+        self.remotecallbacks = OrderedDict()
+        self.callbacks = OrderedDict()
         self.callbacknumber = 0
 
         # ???
@@ -105,7 +113,7 @@ class DnodeConnection(object):
 
     def replace_functions(self, obj, callbacks):
         if obj == '[Function]':
-            functionid, functionpath = callbacks.pop()
+            functionid, functionpath = callbacks.pop(0)
             fn = DNodeRemoteFunction(functionid, functionpath, self)
             if functionid not in self.remotecallbacks:
                 self.remotecallbacks[functionid] = fn
@@ -121,7 +129,7 @@ class DnodeConnection(object):
             o = json.loads(line)
             if isinstance(o['method'], int):
                 callbacks = self.normalize_callbacks(o['callbacks'])
-                myobj = self.traverse_result(o['arguments'], callbacks, {})
+                myobj = self.traverse_result(o['arguments'], callbacks, OrderedDict())
                 self.callbacks[o['method']](*myobj)
             else:
                 fn = getattr(self.pc, o['method'], None)
@@ -132,7 +140,7 @@ class DnodeConnection(object):
                     if fn:
                         # TODO: dont you think this is spagettiii
                         callbacks = self.normalize_callbacks(o['callbacks'])
-                        myobj = self.traverse_result(o['arguments'], callbacks, {})
+                        myobj = self.traverse_result(o['arguments'], callbacks, OrderedDict())
                         fn(*myobj)
                     else:
                         raise Exception("method not found - %s" % o['method'])
