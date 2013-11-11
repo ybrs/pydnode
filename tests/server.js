@@ -20,7 +20,7 @@ var server = dnode(function (remote, conn) {
     }
 
     this.z2 = function(foo, f2, bar, callback){
-        callback(foo, function(o, cb){
+        f2(foo, function(o, cb){
             cb(o);
         }, bar)
     }
