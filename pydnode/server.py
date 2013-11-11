@@ -67,13 +67,13 @@ class DnodeConnection(DNodeNode):
         methods = inspect.getmembers(self.commander, predicate=inspect.ismethod)
         args = OrderedDict()
         callbacks = OrderedDict()
-        callbacknum = 0
-        a = map(lambda x: {x[0]:'[Function]'}, methods)
-        for d in a:
-            args.update(d)
-            for k in d:
-                callbacks[str(callbacknum)] = ["0", k]
-                callbacknum += 1
+
+        for name, method in methods:
+            self.callbacks[self.callbacknumber] = method
+            self.callbacks[name] = method
+            args[self.callbacknumber] = '[Function]'
+            callbacks[str(self.callbacknumber)] = ["0", name]
+            self.callbacknumber += 1
 
         methods_header = dict(method='methods',
              arguments=[args],

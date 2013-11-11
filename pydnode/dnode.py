@@ -3,6 +3,7 @@ import socket
 import json
 import logging
 from collections import OrderedDict
+from operator import itemgetter
 
 class ProtocolCommands(object):
     def __init__(self):
@@ -26,7 +27,7 @@ class DNodeRemoteFunction(object):
         self.client = client
 
     def __call__(self, *args, **kwargs):
-        print "calling remote function...."
+        print "calling remote function....", self.callbackid, self
         self.client.calldnodemethod(int(self.callbackid), *args)
 
     def __str__(self):
@@ -43,11 +44,20 @@ def copyobject(obj, fn, callbacks):
 class DNodeNode(object):
     """ our base class for dnode server and client
     """
+
     def normalize_callbacks(self, callbacks):
-        ret = []
-        for k,v in callbacks.iteritems():
-            ret.append((k, v))
-        return ret
+        """
+            we receive callbacks as
+                {"callbacks": {"6": [1], "7": [3]},
+                    "method": "z2", "arguments": ["foo", "[Function]", "bar", "[Function]"]}
+            but in python - and most other languages, dicts are not sorted,
+            so we sort them by position.
+
+            so "callbacks": {"6": [1], "7": [3]} might become, {"7": [3], "6": [1]} when we json decode,
+            we need to put it in sorted order by their position.
+        """
+        return sorted(callbacks.iteritems(), key=itemgetter(1))
+
 
     def traverse_result(self, result, callbacks, obj):
         myobj = copyobject(result, self.replace_functions, callbacks)
@@ -57,7 +67,7 @@ class DNodeNode(object):
         if callable(obj):
             self.callbacks[self.callbacknumber] = obj
             callbacks[self.callbacknumber] = [self.argcallbackcounter]
-            self.callbacknumber+=1
+            self.callbacknumber += 1
             self.argcallbackcounter += 1
             return '[Function]'
         elif isinstance(obj, str) or isinstance(obj, unicode) or isinstance(obj, int) or isinstance(obj, float):
@@ -127,12 +137,15 @@ class DNodeClient(DNodeNode):
             if isinstance(o['method'], int):
                 print "received method :::: ", o['method'], "self.callbacks", self.callbacks
                 callbacks = self.normalize_callbacks(o['callbacks'])
-                myobj = self.traverse_result(o['arguments'], callbacks, OrderedDict)
+                myobj = self.traverse_result(o['arguments'], callbacks, OrderedDict())
                 fn = self.callbacks[o['method']]
                 print ">>>>>", fn, o['method'], myobj
                 fn(*myobj)
             else:
                 if o['method'] == 'methods':
+                    print "--------------"
+                    print o
+                    print "--------------"
                     for k, v in o['callbacks'].iteritems():
                         self.remote.add_method(str(v[1]), [k], k)
                     self.on_connect()

@@ -32,12 +32,16 @@ class TestProtocol(unittest.TestCase):
                 print tests.get(), "OK"
             tests.put("check simple f==foo")
             client.calldnodemethod("z1", "foo", fn)
+
+            tests.put("check simple f==foo")
+            client.calldnodemethod("z1", "foo", fn)
+
+            #
             tests.put("check simple with remote notation f==foo")
             client.remote.z1("foo", fn)
 
             def output(o):
                 assert o
-                print ">>>> output called !!!!"
                 print tests.get(), "OK"
 
             tests.put("check lambda functions")
