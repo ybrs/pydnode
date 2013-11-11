@@ -6,7 +6,9 @@ from tornado.iostream import IOStream
 from tornado.tcpserver import TCPServer
 from collections import OrderedDict
 from dnode import ProtocolCommands, copyobject, DNodeRemoteFunction
- 
+import inspect
+
+
 logging.basicConfig(level=logging.INFO, format='%(levelname)s - - %(asctime)s %(message)s', datefmt='[%d/%b/%Y %H:%M:%S]')
  
 class DnodeServer(TCPServer):
@@ -53,22 +55,33 @@ class DnodeConnection(object):
         self.address = address
         self.stream_set.add(self.stream)
         self.stream.set_close_callback(self._on_close)
-
         self.pc = ProtocolCommands()
         self.commander = rpc_class()
         self.remotecallbacks = OrderedDict()
         self.callbacks = OrderedDict()
         self.callbacknumber = 0
-
-        # ???
         self.send_methods()
-
         self.stream.read_until('\n', self._on_read_line)
 
     def send_methods(self):
-        s = '{"method":"methods", "arguments":[{"z1":"[Function]","z2":"[Function]","z3":"[Function]"}], "callbacks":{"0":["0","z1"],"1":["0","z2"],"2":["0","z3"]},"links":[]}'
+        methods = inspect.getmembers(self.commander, predicate=inspect.ismethod)
+        args = OrderedDict()
+        callbacks = OrderedDict()
+        callbacknum = 0
+        a = map(lambda x: {x[0]:'[Function]'}, methods)
+        for d in a:
+            args.update(d)
+            for k in d:
+                callbacks[str(callbacknum)] = ["0", k]
+                callbacknum += 1
+
+        methods_header = dict(method='methods',
+             arguments=[args],
+             callbacks=callbacks,
+             links=[])
+
         for stream in self.stream_set:
-            stream.write("%s\n" % s, self._on_write_complete)
+            stream.write("%s\n" % json.dumps(methods_header), self._on_write_complete)
 
     def _on_read_line(self, data):
         logging.info('read a new line from %s - %s', self.address, data)
@@ -148,7 +161,6 @@ class DnodeConnection(object):
             logging.exception("exception at parseline")
             raise
 
- 
     def _on_write_complete(self):
         logging.info('write a line to %s', self.address)
         if not self.stream.reading():
@@ -159,8 +171,8 @@ class DnodeConnection(object):
         self.stream_set.remove(self.stream)
  
 def main():
-    echo_server = DnodeServer(rpc_class=RpcMethods)
-    echo_server.listen(7070)
+    dnode_server = DnodeServer(rpc_class=RpcMethods)
+    dnode_server.listen(7070)
     IOLoop.instance().start()
 
 if __name__ == "__main__":
