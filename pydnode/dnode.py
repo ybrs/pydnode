@@ -87,6 +87,7 @@ class DNodeNode(object):
                     'arguments': args,
                     'callbacks': callbacks
                 }) + "\n"
+        print "sending line:", line
         return line
 
     def replace_functions(self, obj, callbacks):
@@ -133,6 +134,7 @@ class DNodeClient(DNodeNode):
 
     def parseline(self, line):
         try:
+            print "received line", line
             o = json.loads(line)
             if isinstance(o['method'], int):
                 callbacks = self.normalize_callbacks(o['callbacks'])

@@ -22,38 +22,6 @@ class DnodeServer(TCPServer):
         DnodeConnection(stream, address, self.rpc_class)
 
 
-class RpcMethods(object):
-    """
-    this is just an example server
-    """
-    def z1(self, k, fn):
-        print "received k", k
-        print "fn:", fn
-        def mycb(*args):
-            print "mycb: >>>>", args
-        fn("foo")
-
-    def z2(self, k, fn2, k2, fn3):
-        print "calling z2", fn2, fn3
-        assert k == 'foo'
-        assert k2 == 'bar'
-        def somecallback(c, f):
-            print ">>>", c, f
-            f("baz")
-        fn2("foo", somecallback, "bar")
-
-    def dicttest(self, h, callback):
-        """
-        call with hash
-        """
-        callback(h)
-
-    def dicttest2(self, h):
-        print "in dicttest2", h
-        h['callback']("foo")
-
-
-
 class DnodeConnection(DNodeNode):
  
     stream_set = set([])
@@ -80,7 +48,7 @@ class DnodeConnection(DNodeNode):
         for name, method in methods:
             self.callbacks[self.callbacknumber] = method
             self.callbacks[name] = method
-            args[self.callbacknumber] = '[Function]'
+            args[name] = '[Function]'
             callbacks[str(self.callbacknumber)] = ["0", name]
             self.callbacknumber += 1
 
@@ -90,9 +58,14 @@ class DnodeConnection(DNodeNode):
              links=[])
 
         for stream in self.stream_set:
+            print "sending our header:", json.dumps(methods_header)
             stream.write("%s\n" % json.dumps(methods_header), self._on_write_complete)
 
+        #for stream in self.stream_set:
+        #    stream.write('{"method":"methods","arguments":[{"dicttest":"[Function]","dicttest2":"[Function]"}],"callbacks":{"0":["0","dicttest"],"1":["0","dicttest2"]},"links":[]}\n')
+
     def _on_read_line(self, data):
+        print "on readline called with", data
         logging.info('read a new line from %s - %s', self.address, data)
         self.parseline(data)
 
@@ -106,6 +79,7 @@ class DnodeConnection(DNodeNode):
 
     def parseline(self, line):
         try:
+            print "received line:", line
             o = json.loads(line)
             if isinstance(o['method'], int):
                 callbacks = self.normalize_callbacks(o['callbacks'])
@@ -124,20 +98,42 @@ class DnodeConnection(DNodeNode):
                         fn(*myobj)
                     else:
                         raise Exception("method not found - %s" % o['method'])
+            print "parseline finished"
         except Exception as e:
             logging.exception("exception at parseline")
             raise
 
+        if not self.stream.reading():
+            self.stream.read_until("\n", self._on_read_line)
+
     def _on_write_complete(self):
         logging.info('write a line to %s', self.address)
         if not self.stream.reading():
-            self.stream.read_until('\n', self._on_read_line)
+            print "on readline...."
+            self.stream.read_until("\n", self._on_read_line)
  
     def _on_close(self):
         logging.info('client quit %s', self.address)
         self.stream_set.remove(self.stream)
  
 def main():
+
+    class RpcMethods(object):
+        def dicttest(self, h, callback):
+            """
+            call with hash
+            """
+            print "dicttest called !!!"
+            callback(h)
+
+        def dicttest2(self, h):
+            print "in dicttest2", h
+            h['callback']("foo")
+
+        def foo(self):
+            print "foo called"
+
+
     dnode_server = DnodeServer(rpc_class=RpcMethods)
     dnode_server.listen(7070)
     IOLoop.instance().start()
