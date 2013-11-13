@@ -35,8 +35,14 @@ var server = dnode(function (remote, conn) {
     //     })
     // }
 
-    this.foo = function(){
-        console.log("foo called")
+    this.foo = function(h, callback){
+        console.log("foo called", h, callback)
+        callback("bar", function(c, cb){
+            console.log("fffffff !!!!! ------------->>>>>>>>>>>>>>> ", c)
+            cb("foo", function(d){
+                d.callbacks[0]("hello")
+            })
+        })
     }
 
     this.dicttest = function(o, fn){

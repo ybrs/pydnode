@@ -38,7 +38,7 @@ class Serializer(Traverser):
     def walk(self, obj, path, key=None):
         if callable(obj):
             callback_id = self.callback_registery.add_callback(obj)
-            self.callbacks[str(self.callback_cnt)] = map(str, path)
+            self.callbacks[str(callback_id)] = map(str, path)
             self.callback_cnt += 1
             return '[Function]'
         else:
