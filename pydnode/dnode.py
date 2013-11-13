@@ -4,6 +4,49 @@ import json
 import logging
 from collections import OrderedDict
 from operator import itemgetter
+import time
+
+class DNodeFunctionWrapper(object):
+
+    def __init__(self, path, callback_id=None):
+        self.callback_id = callback_id
+        self.path = path
+        self.created_at = time.time()
+
+    def __call__(self, *args, **kwargs):
+        self.client.calldnodemethod(self.callback_id, *args)
+
+    def __str__(self):
+        return "<DNodeFunctionWrapper callbackid:%s path:%s>" % (self.callbackid, self.path)
+
+
+class CallBackRegistry(object):
+    """
+    this is where we store our callbacks.
+    """
+    def __init__(self, remote=None):
+        self.callback_number = 0
+        self.remote = remote
+        self.map = {}
+
+    def add_callback(self, callback):
+        self.callback_number += 1
+        self.map[self.callback_number] = callback
+        callback.callback_id = self.callback_number
+        return self.callback_number
+
+    def get_callback(self, callback_id):
+        return self.map[callback_id]
+
+class RemoteCallbackRegistry(CallBackRegistry):
+
+    def add_callback(self, callback):
+        """
+        when the function comes from remote they decide the id,
+        so we just store it.
+        """
+        self.map[callback.callback_id] = callback
+
 
 class ProtocolCommands(object):
     def __init__(self):
@@ -14,23 +57,6 @@ class ProtocolCommands(object):
             print k
             self.rpcmethods[k] = True
         print self.rpcmethods
-
-class DNodeRemoteFunction(object):
-
-    def __init__(self, callbackid, path, client):
-        """
-        path is just for debugging purposes
-        """
-        self.callbackid = callbackid
-        self.path = path
-        # TODO: this object will never be deleted, because circular ref.
-        self.client = client
-
-    def __call__(self, *args, **kwargs):
-        self.client.calldnodemethod(int(self.callbackid), *args)
-
-    def __str__(self):
-        return "<DNodeRemoteFunction callbackid:%s path:%s>" % (self.callbackid, self.path)
 
 def copyobject(obj, fn, callbacks):
     obj = fn(obj, callbacks)

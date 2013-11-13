@@ -25,7 +25,7 @@ class Serializer(Traverser):
     traverses an array/map structure, replaces callbacks,
     and serialize it.
     """
-    def __init__(self, obj):
+    def __init__(self, obj, callback_registery):
         """
             arguments must always be an array or arrayish
         """
@@ -33,9 +33,11 @@ class Serializer(Traverser):
         self.obj = obj
         self.callbacks = {}
         self.callback_cnt = 0
+        self.callback_registery = callback_registery
 
     def walk(self, obj, path, key=None):
         if callable(obj):
+            callback_id = self.callback_registery.add_callback(obj)
             self.callbacks[str(self.callback_cnt)] = map(str, path)
             self.callback_cnt += 1
             return '[Function]'
@@ -47,10 +49,11 @@ class Serializer(Traverser):
 
 
 class Deserializer(Traverser):
-    def __init__(self, arguments, callbacks, wrap_callback_class=None):
+    def __init__(self, arguments, callbacks, wrap_callback_class=None, callback_registery=None):
         self.arguments = arguments
         self.callbacks = callbacks
         self.wrap_callback_class = wrap_callback_class
+        self.callback_registery = callback_registery
 
     def find_path_in_callbacks(self, path):
         for k, p in self.callbacks.iteritems():
@@ -62,10 +65,21 @@ class Deserializer(Traverser):
     def walk(self, obj, path, key=None):
         fnd = self.find_path_in_callbacks(path)
         if fnd:
-            return self.wrap_callback_class(*fnd)
+            callback_id, path = fnd
+            fn = self.wrap_callback_class(path=path, callback_id=callback_id)
+            self.callback_registery.add_callback(fn)
+            return fn
         return obj
 
     def deserialize(self):
         return self.traverse(self.arguments, self.walk, [], 0)
 
 
+if __name__ == "__main__":
+    import json
+    from pydnode.dnode import DNodeRemoteFunction, RemoteCallbackRegistry
+    remote_fn_registery = RemoteCallbackRegistry()
+    o = json.loads('''{"method":1,"arguments":[{"a":1,"b":"[Function]","c":[1,"[Function]"],"d":{"e":"[Function]"}}],"callbacks":{"0":["0","b"],"1":["0","c","1"],"2":["0","d","e"]},"links":[]}''')
+    d = Deserializer(arguments=o['arguments'], callbacks=o['callbacks'],
+                     wrap_callback_class=DNodeRemoteFunction,
+                     callback_registery=remote_fn_registery)
