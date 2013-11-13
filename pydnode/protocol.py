@@ -1,26 +1,4 @@
-from pprint import pprint
-
-class Serializer(object):
-    """
-    traverses an array/map structure, replaces callbacks,
-    and serialize it.
-    """
-    def __init__(self, obj):
-        """
-            arguments must always be an array or arrayish
-        """
-        assert hasattr(obj, '__iter__')
-        self.obj = obj
-        self.callbacks = {}
-        self.callback_cnt = 0
-
-    def walk(self, obj, path, key=None):
-        if callable(obj):
-            self.callbacks[self.callback_cnt] = path
-            self.callback_cnt += 1
-            return '[Function]'
-        else:
-            return obj
+class Traverser(object):
 
     def traverse(self, obj, walk, path, cnt, key=None):
         obj = walk(obj, path, key)
@@ -42,30 +20,52 @@ class Serializer(object):
             cnt += 1
         return obj
 
+class Serializer(Traverser):
+    """
+    traverses an array/map structure, replaces callbacks,
+    and serialize it.
+    """
+    def __init__(self, obj):
+        """
+            arguments must always be an array or arrayish
+        """
+        assert hasattr(obj, '__iter__')
+        self.obj = obj
+        self.callbacks = {}
+        self.callback_cnt = 0
+
+    def walk(self, obj, path, key=None):
+        if callable(obj):
+            self.callbacks[str(self.callback_cnt)] = map(str, path)
+            self.callback_cnt += 1
+            return '[Function]'
+        else:
+            return obj
+
     def serialize(self):
         return self.traverse(self.obj, self.walk, [], 0)
 
-if __name__ == "__main__":
 
-    path = []
+class Deserializer(Traverser):
+    def __init__(self, arguments, callbacks, wrap_callback_class=None):
+        self.arguments = arguments
+        self.callbacks = callbacks
+        self.wrap_callback_class = wrap_callback_class
 
-    def fn():
-        return
+    def find_path_in_callbacks(self, path):
+        for k, p in self.callbacks.iteritems():
+            # we convert both to str, because, json from nodejs/dnode
+            # sends everything as str/unicode
+            if map(str, p) == map(str, path):
+                return k, p
 
-    def fn2():
-        return
+    def walk(self, obj, path, key=None):
+        fnd = self.find_path_in_callbacks(path)
+        if fnd:
+            return self.wrap_callback_class(*fnd)
+        return obj
 
-    obj = [{
-        'a': {'b': fn},
-        'c': {'d': [2323, fn2]}
-    }]
-
-    #obj = ['a', 'b', [1, fn]]
-
-    s = Serializer(obj)
-    o = s.serialize()
-    pprint(s.callbacks)
-    print "------------------"
-    pprint(o)
+    def deserialize(self):
+        return self.traverse(self.arguments, self.walk, [], 0)
 
 

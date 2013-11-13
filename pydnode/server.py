@@ -61,9 +61,6 @@ class DnodeConnection(DNodeNode):
             print "sending our header:", json.dumps(methods_header)
             stream.write("%s\n" % json.dumps(methods_header), self._on_write_complete)
 
-        #for stream in self.stream_set:
-        #    stream.write('{"method":"methods","arguments":[{"dicttest":"[Function]","dicttest2":"[Function]"}],"callbacks":{"0":["0","dicttest"],"1":["0","dicttest2"]},"links":[]}\n')
-
     def _on_read_line(self, data):
         print "on readline called with", data
         logging.info('read a new line from %s - %s', self.address, data)

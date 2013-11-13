@@ -9,14 +9,6 @@ from pydnode import dnode
 import time
 from pydnode import server
 
-"""
-in project root, you need to install dnode for tests
-$ npm i dnode
-then run
-$ ./env/bin/python tests/test_basic.py
-"""
-
-
 
 class RpcMethods(object):
     """

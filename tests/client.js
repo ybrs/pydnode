@@ -10,15 +10,20 @@
 //     });
 // });
 
-var dnode = require('dnode');
 
+/**
+received::: ('127.0.0.1', 61521) {"method":1,"arguments":[{"a":1},"[Function]"],"callbacks":{"0":["1"]},"links":[]}
+received::: ('127.0.0.1', 61538) {"callbacks": {"1": [2]}, "method": 1, "arguments": [{"h": "hello"}, "[Function]"]}
+**/
+
+var dnode = require('dnode');
 var d = dnode.connect(7071);
 d.on('remote', function (remote) {
-    console.log("calling remote - foo")
-    remote.foo()
-    // console.log("calling remote dict test")
+    var fn = function(){}
+    // remote.dicttest({a:1, b:[1, fn]})
+    remote.dicttest({a:1, b: fn, c:[1, fn], d: {e: fn}})
     // remote.dicttest({a:1}, function (s) {
-    //     console.log('beep => ' + s);
-    //     d.end();
+    // }, {a: [1, function(){}] }, function(){
+    //     //
     // });
 });

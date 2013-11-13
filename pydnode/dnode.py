@@ -27,7 +27,6 @@ class DNodeRemoteFunction(object):
         self.client = client
 
     def __call__(self, *args, **kwargs):
-        print "calling remote function....", self.callbackid, self
         self.client.calldnodemethod(int(self.callbackid), *args)
 
     def __str__(self):
