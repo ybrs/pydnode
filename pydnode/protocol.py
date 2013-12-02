@@ -30,7 +30,7 @@ class Serializer(Traverser):
             arguments must always be an array or arrayish
         """
         assert hasattr(obj, '__iter__')
-        self.obj = obj
+        self.obj = list(obj)
         self.callbacks = {}
         self.callback_cnt = 0
         self.callback_registery = callback_registery

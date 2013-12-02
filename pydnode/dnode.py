@@ -69,14 +69,11 @@ class Client(object):
         self.callback_registry.add_callback(self.methods, "methods")
 
     def methods(self, methods):
-        print "methods received ", methods
         for k, method in methods.iteritems():
-            print "method:::", method
             self.remote_registry.add_callback(method, k)
         self.on_connect()
 
     def get_args_callbacks_(self, *args):
-        print "type of args::: ", type(args)
         serializer = Serializer(list(args), self.callback_registry)
         args = serializer.serialize()
         return args, serializer.callbacks
@@ -105,7 +102,6 @@ class Client(object):
 
     def __getattr__(self, name):
         try:
-            print "self.remote_registry", self.remote_registry.map.keys()
             return self.remote_registry.map[name]
         except:
             raise AttributeError
@@ -140,6 +136,7 @@ class TcpClient(Client):
         self.conn = iostream.IOStream(self.socket)
         self.conn.connect((self.ip, self.port), self.connect_callback)
         ioloop.IOLoop.instance().start()
+
 
 class WsClient(Client):
     pass

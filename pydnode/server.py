@@ -5,7 +5,8 @@ from tornado.ioloop import IOLoop
 from tornado.iostream import IOStream
 from tornado.tcpserver import TCPServer
 from collections import OrderedDict
-from dnode import ProtocolCommands, copyobject, DNodeRemoteFunction, DNodeNode
+from dnode import CallBackRegistry, RemoteCallbackRegistry, DNodeFunctionWrapper
+from pydnode.protocol import Serializer, Deserializer
 import inspect
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(asctime)s %(message)s', datefmt='[%d/%b/%Y %H:%M:%S]')
@@ -22,44 +23,61 @@ class DnodeServer(TCPServer):
         DnodeConnection(stream, address, self.rpc_class)
 
 
-class DnodeConnection(DNodeNode):
- 
-    stream_set = set([])
- 
+class DnodeConnection(object):
+
     def __init__(self, stream, address, rpc_class):
         logging.info('receive a new connection from %s', address)
-        self.stream = stream
+        self.conn = stream
         self.address = address
-        self.stream_set.add(self.stream)
-        self.stream.set_close_callback(self._on_close)
-        self.pc = ProtocolCommands()
+        self.conn.set_close_callback(self._on_close)
         self.commander = rpc_class()
-        self.remotecallbacks = OrderedDict()
-        self.callbacks = OrderedDict()
+        self.remote_registry = RemoteCallbackRegistry(remote=self)
+        self.callback_registry = CallBackRegistry(remote=self)
+        self.callback_registry.add_callback(self.methods, "methods")
+
         self.callbacknumber = 0
+
         self.send_methods()
-        self.stream.read_until('\n', self._on_read_line)
+        self.conn.read_until('\n', self._on_read_line)
+
+    def get_args_callbacks_(self, *args):
+        serializer = Serializer(list(args), self.callback_registry)
+        args = serializer.serialize()
+        return args, serializer.callbacks
+
+    def methods(self, methods):
+        for k, method in methods.iteritems():
+            self.remote_registry.add_callback(method, k)
 
     def send_methods(self):
         methods = inspect.getmembers(self.commander, predicate=inspect.ismethod)
-        args = OrderedDict()
-        callbacks = OrderedDict()
 
         for name, method in methods:
-            self.callbacks[self.callbacknumber] = method
-            self.callbacks[name] = method
-            args[name] = '[Function]'
-            callbacks[str(self.callbacknumber)] = ["0", name]
-            self.callbacknumber += 1
+            self.callback_registry.add_callback(method, name)
 
-        methods_header = dict(method='methods',
-             arguments=[args],
-             callbacks=callbacks,
-             links=[])
+        self.call_remote("methods", dict(methods))
 
-        for stream in self.stream_set:
-            print "sending our header:", json.dumps(methods_header)
-            stream.write("%s\n" % json.dumps(methods_header), self._on_write_complete)
+    def call_remote(self, method, *args):
+        parsedargs, callbacks = self.get_args_callbacks_(*args)
+
+        # dnode/nodejs sends us this,
+        #   {"method":1,"arguments":["bar","[Function]"],"callbacks":{"3":["1"]},"links":[]}
+        # then expects us to call them
+        # with this
+        #   {"callbacks": {}, "method": 3, "arguments": ["hello XXXX"]}
+        # thats why we have this here.
+        try:
+            method = int(method)
+        except:
+            pass
+
+        line = json.dumps({
+                    'method': method,
+                    'arguments': parsedargs,
+                    'callbacks': callbacks,
+                    'links': []
+                }) + "\n"
+        self.conn.write(line)
 
     def _on_read_line(self, data):
         print "on readline called with", data
@@ -67,52 +85,31 @@ class DnodeConnection(DNodeNode):
         self.parseline(data)
 
     def write_to_client(self, data):
-        for stream in self.stream_set:
-            stream.write(data, self._on_write_complete)
+        self.conn.write(data, self._on_write_complete)
 
-    def calldnodemethod(self, method, *args, **kwargs):
-        line = self.dnode_method_protocol_line(method, *args, **kwargs)
-        self.write_to_client(line)
+    def get_deserializer(self, arguments, callbacks):
+        d = Deserializer(arguments=arguments, callbacks=callbacks,
+                     wrap_callback_class=DNodeFunctionWrapper,
+                     callback_registery=self.remote_registry)
+        return d.deserialize()
 
     def parseline(self, line):
-        try:
-            print "received line:", line
-            o = json.loads(line)
-            if isinstance(o['method'], int):
-                callbacks = self.normalize_callbacks(o['callbacks'])
-                myobj = self.traverse_result(o['arguments'], callbacks, OrderedDict())
-                self.callbacks[o['method']](*myobj)
-            else:
-                fn = getattr(self.pc, o['method'], None)
-                if fn:
-                    fn(o)
-                else:
-                    fn = getattr(self.commander, o['method'], None)
-                    if fn:
-                        # TODO: dont you think this is spagettiii
-                        callbacks = self.normalize_callbacks(o['callbacks'])
-                        myobj = self.traverse_result(o['arguments'], callbacks, OrderedDict())
-                        fn(*myobj)
-                    else:
-                        raise Exception("method not found - %s" % o['method'])
-            print "parseline finished"
-        except Exception as e:
-            logging.exception("exception at parseline")
-            raise
-
-        if not self.stream.reading():
-            self.stream.read_until("\n", self._on_read_line)
+        o = json.loads(line)
+        d = self.get_deserializer(o['arguments'], o['callbacks'])
+        fn = self.callback_registry.get_callback(o['method'])
+        if fn:
+            fn(*d)
+        self.conn.read_until("\n", self.parseline)
 
     def _on_write_complete(self):
         logging.info('write a line to %s', self.address)
-        if not self.stream.reading():
+        if not self.conn.reading():
             print "on readline...."
-            self.stream.read_until("\n", self._on_read_line)
+            self.conn.read_until("\n", self._on_read_line)
  
     def _on_close(self):
         logging.info('client quit %s', self.address)
-        self.stream_set.remove(self.stream)
- 
+
 def main():
 
     class RpcMethods(object):
@@ -127,8 +124,8 @@ def main():
             print "in dicttest2", h
             h['callback']("foo")
 
-        def foo(self):
-            print "foo called"
+        def foo(self, h):
+            print "foo called", h
 
 
     dnode_server = DnodeServer(rpc_class=RpcMethods)
